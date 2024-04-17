@@ -1,4 +1,9 @@
 import { ErrorMapper } from "utils/ErrorMapper";
+import { roleHarvester } from "./utils/roles/roleHarvester";
+import { roleBuilder } from "./utils/roles/roleBuilder";
+import { roleUpgrader } from "./utils/roles/roleUpgrader";
+import { countCreepsOfRole } from "./utils/countCreepsOfRole";
+import { CreepRole } from "./utils/roles/CreepRole";
 
 declare global {
   /*
@@ -34,8 +39,16 @@ declare global {
 export const loop = ErrorMapper.wrapLoop(() => {
   console.log(`Current game tick is ${Game.time}`);
 
-  if (countCreepsOfRole('harvester') < 1) {
-    Game.spawns['Spawn1'].spawnCreep([WORK, MOVE, CARRY], "Harvester1", { memory: { role: 'harvester', room: 'room1', working: true } });
+  console.log(countCreepsOfRole(CreepRole.HARVESTER))
+  console.log(countCreepsOfRole(CreepRole.BUILDER))
+  console.log(countCreepsOfRole(CreepRole.UPGRADER))
+
+  if (countCreepsOfRole(CreepRole.HARVESTER) < 1) {
+    Game.spawns['Spawn1'].spawnCreep([WORK, MOVE, CARRY], CreepRole.HARVESTER+Game.time.toString(), { memory: { role: CreepRole.HARVESTER, room: 'room1', working: true } });
+  } else if (countCreepsOfRole(CreepRole.UPGRADER) < 1) {
+    Game.spawns['Spawn1'].spawnCreep([WORK, MOVE, CARRY], CreepRole.UPGRADER+Game.time.toString(), { memory: { role: CreepRole.UPGRADER, room: 'room1', working: true } });
+  } else if (countCreepsOfRole(CreepRole.BUILDER) < 1) {
+    Game.spawns['Spawn1'].spawnCreep([WORK, MOVE, CARRY], CreepRole.BUILDER+Game.time.toString(), { memory: { role: CreepRole.BUILDER, room: 'room1', working: true } });
   }
 
   // Automatically delete memory of missing creeps
@@ -47,93 +60,14 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     const creep = Game.creeps[name];
 
-    if (creep.memory.role == 'harvester') {
+    if (creep.memory.role == CreepRole.HARVESTER) {
       roleHarvester(creep);
     }
-    if (creep.memory.role == 'upgrader') {
+    if (creep.memory.role == CreepRole.UPGRADER) {
       roleUpgrader(creep);
     }
-    if (creep.memory.role == 'builder') {
+    if (creep.memory.role == CreepRole.BUILDER) {
       roleBuilder(creep);
     }
   }
 });
-
-
-function countCreepsOfRole(role: string): number {
-  return _(Memory.creeps).filter({ memory: { role: role } }).size();
-}
-
-function roleHarvester(creep: Creep): void {
-  if (creep.store.getFreeCapacity() > 0) {
-    const sources = creep.room.find(FIND_SOURCES);
-    if (creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
-      creep.moveTo(sources[0], { visualizePathStyle: { stroke: '#ffaa00' } });
-    }
-  }
-  else {
-    const targets = creep.room.find(FIND_STRUCTURES, {
-      filter: (structure) => {
-        return (structure.structureType == STRUCTURE_EXTENSION ||
-          structure.structureType == STRUCTURE_SPAWN ||
-          structure.structureType == STRUCTURE_TOWER) &&
-          structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
-      }
-    });
-    if (targets.length > 0) {
-      if (creep.transfer(targets[0], RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(targets[0], { visualizePathStyle: { stroke: '#ffffff' } });
-      }
-    }
-  }
-}
-
-function roleBuilder(creep: Creep): void {
-  if (creep.memory.working && creep.store[RESOURCE_ENERGY] == 0) {
-    creep.memory.working = false;
-    creep.say('🔄 harvest');
-  }
-  if (!creep.memory.working && creep.store.getFreeCapacity() == 0) {
-    creep.memory.working = true;
-    creep.say('🚧 build');
-  }
-
-  if (creep.memory.working) {
-    const targets = creep.room.find(FIND_CONSTRUCTION_SITES);
-    if (targets.length) {
-      if (creep.build(targets[0]) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(targets[0], { visualizePathStyle: { stroke: '#ffffff' } });
-      }
-    }
-  }
-  else {
-    const sources = creep.room.find(FIND_SOURCES);
-    if (creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
-      creep.moveTo(sources[0], { visualizePathStyle: { stroke: '#ffaa00' } });
-    }
-  }
-}
-
-function roleUpgrader(creep: Creep): void {
-
-  if (creep.memory.working && creep.store[RESOURCE_ENERGY] == 0) {
-    creep.memory.working = false;
-    creep.say('🔄 harvest');
-  }
-  if (!creep.memory.working && creep.store.getFreeCapacity() == 0) {
-    creep.memory.working = true;
-    creep.say('⚡ upgrade');
-  }
-
-  if (creep.memory.working) {
-    if (creep.upgradeController(creep.room.controller!) == ERR_NOT_IN_RANGE) {
-      creep.moveTo(creep.room.controller!, { visualizePathStyle: { stroke: '#ffffff' } });
-    }
-  }
-  else {
-    const sources = creep.room.find(FIND_SOURCES);
-    if (creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
-      creep.moveTo(sources[0], { visualizePathStyle: { stroke: '#ffaa00' } });
-    }
-  }
-}
